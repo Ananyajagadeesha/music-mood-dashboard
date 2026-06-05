@@ -1,5 +1,6 @@
 import requests
 import pandas as pd
+import psycopg2
 from datetime import datetime
 
 def fetch_tracks(genre, limit=50):
@@ -35,6 +36,45 @@ def summarise(df):
     print(f"\nGenres found:")
     print(df["genre"].value_counts())
 
+def save_to_db(df):
+    db_connection = psycopg2.connect(host = "localhost",
+        database = "music_db",
+        user = "postgres",
+        password = "15082024")
+    
+    #cursor object to send sql commands to db
+    cur = db_connection.cursor()
+    
+    #create table
+    cur.execute("""
+                create table if not exists tracks(
+                    id serial primary key,
+                    track varchar(255),
+                    artist varchar(255),
+                    album varchar(255),
+                    genre varchar(100),
+                    price float,
+                    release_date varchar(100),
+                    fetched_at timestamp default current_timestamp
+                )
+                """)
+    
+    #insert rows
+    for _, row in df.iterrows():
+        cur.execute("insert into tracks(track, artist, album, genre, release_date) values (%s, %s, %s, %s, %s)", (row['track'], row['artist'], row['album'], row['genre'], row['release_date']))
+                    
+    #commit permanently
+    db_connection.commit()
+    
+    #close connections
+    cur.close()
+    db_connection.close()
+    
+    print(f"Saved {len(df)} tracks to database")
+    
+
+
+
 if __name__ == "__main__":
     genre = "rap"  # change this to anything you like
     print(f"Fetching tracks for: {genre}")
@@ -44,3 +84,4 @@ if __name__ == "__main__":
     df.to_csv(filename, index=False)
     print(f"Saved to {filename}")
     summarise(df)
+    save_to_db(df)
